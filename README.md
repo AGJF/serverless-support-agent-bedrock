@@ -65,3 +65,107 @@ you> I am using Safari 17 on macOS Sonoma
 bot> <thinking> I have all the required information to create a bug report. I will now call the create_bug_report tool. </thinking> 
 [tool call] bugreports___create_bug_report
 Thank you for providing the details. Your bug report has been successfully submitted with ticket ID d4256b00-d688-46c6-a8fc-deb75887a451. Our engineering team will look into this issue.
+
+```
+
+### Verified DynamoDB Record
+
+Each completed tool execution persists a structured record directly into DynamoDB:
+
+---
+
+## 🛠️ Tech Stack
+
+* **AI & Agent Infrastructure:** Amazon Bedrock AgentCore (Harness & Gateway), Amazon Bedrock Evaluations
+* **Foundation Models:** Amazon Nova Pro (`amazon.nova-pro-v1:0`)
+* **Compute & Storage:** AWS Lambda, Amazon DynamoDB, Amazon S3
+* **Infrastructure as Code:** AWS CloudFormation
+* **Language & SDKs:** Python 3.11+, Boto3, JSONL
+
+---
+
+## 🚀 Deployment & Reproduction Guide
+
+### Prerequisites
+
+* AWS CLI configured with administrator permissions in `us-east-1`.
+* Python 3.11+ installed.
+* Model access enabled for `amazon.nova-pro-v1:0` in the Amazon Bedrock console.
+
+### 1. Provision Infrastructure
+
+Deploy the tool stack (DynamoDB table, Lambda function, IAM execution and gateway roles):
+
+```bash
+aws cloudformation create-stack \
+  --stack-name bug-report-tool-stack \
+  --template-body file://infrastructure/cloudformation-tool.yaml \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --region us-east-1
+
+```
+
+### 2. Environment Setup
+
+Clone this repository and install project dependencies:
+
+```bash
+git clone [https://github.com/AGJF/serverless-support-agent-bedrock.git](https://github.com/AGJF/serverless-support-agent-bedrock.git)
+cd serverless-support-agent-bedrock
+pip install -r requirements.txt
+
+```
+
+### 3. Register Tool Gateway & Compile Harness
+
+Initialize the AgentCore Gateway target and deploy the managed harness:
+
+```bash
+python src/setup_gateway.py
+python src/create_harness.py
+
+```
+
+### 4. Interactive Execution
+
+Run the terminal-based multi-turn chat client:
+
+```bash
+python src/chat.py
+
+```
+
+### 5. Automated Benchmarking
+
+Run the batch evaluation pipeline to generate the evaluation dataset:
+
+```bash
+python src/generate-eval-dataset.py
+
+```
+
+Upload the output JSONL file (`evals/output_eval_dataset.jsonl`) to Amazon Bedrock Evaluations to view the rubric score breakdown.
+
+### 6. Teardown
+
+To tear down all active AgentCore and CloudFormation resources:
+
+```bash
+python src/cleanup_agentcore.py
+aws cloudformation delete-stack --stack-name bug-report-tool-stack --region us-east-1
+
+```
+
+---
+
+## 🔬 Architectural Decisions & Trade-Offs
+
+* **Single-Prompt State Machine vs. Multi-Agent Orchestration:** Using a single prompt with structured `<thinking>` scratchpads avoided the latency overhead, token multiplication, and coordination failures common in multi-agent handoffs while maintaining strict routing accuracy.
+* **Embedded FAQ vs. Vector RAG:** For bounded, low-churn knowledge bases (<10,000 tokens), in-context document embedding provides lower retrieval latency and eliminates vector index maintenance costs compared to external vector stores (e.g., OpenSearch, Pinecone).
+* **AgentCore Gateway vs. Legacy Bedrock Agents:** Leveraging native AgentCore Gateway enables direct JSON event delivery to Lambda without complex wrapper envelope unpacking, decreasing invocation overhead.
+
+---
+
+*Developed as part of the Future AWS Agent Engineer Nanodegree Program.*
+
+```
